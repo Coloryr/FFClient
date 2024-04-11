@@ -78,7 +78,9 @@ int img_max_width = 0;
 int img_max_height = 0;
 int disable_audio = 0;
 int nobuffer = 0;
+int need_exit = 0;
 
+static uint8_t send = 0;
 static int eof;
 static AVBufferRef* hw_device_ctx = NULL;
 static enum AVPixelFormat hw_pix_fmt;
@@ -157,6 +159,26 @@ static const struct TextureFormatEntry
     {AV_PIX_FMT_NONE, SDL_PIXELFORMAT_UNKNOWN},
 };
 
+static void do_exit(VideoState* is)
+{
+    if (is)
+    {
+        stream_close(is);
+    }
+    if (socket_send || socket_conn)
+    {
+        socket_stop();
+    }
+    av_dict_free(&swr_opts);
+    av_dict_free(&sws_dict);
+    av_dict_free(&format_opts);
+    av_dict_free(&codec_opts);
+    av_freep(&vfilters_list);
+    avformat_network_deinit();
+    SDL_Quit();
+    exit(0);
+}
+
 static void video_image_display(VideoState* is)
 {
     Frame* vp;
@@ -175,7 +197,8 @@ static void video_image_display(VideoState* is)
             if (!sw_frame)
             {
                 fprintf(stderr, "Could not allocate frame\n");
-                exit(1);
+                do_exit(is);
+                return;
             }
 
             // 将硬件帧转换为软件帧
@@ -183,7 +206,8 @@ static void video_image_display(VideoState* is)
             if (ret < 0)
             {
                 fprintf(stderr, "Error transferring the data to system memory\n");
-                exit(1);
+                do_exit(is);
+                return;
             }
         }
         else
@@ -202,7 +226,8 @@ static void video_image_display(VideoState* is)
             if (ret < 0)
             {
                 printf("Could not allocate destination image\n");
-                return -1;
+                do_exit(is);
+                return;
             }
 
             av_log(NULL, AV_LOG_INFO, "Create sws %dx%d -> %dx%d\n",
@@ -228,30 +253,6 @@ static void video_image_display(VideoState* is)
     }
 }
 
-static void uninit_opts(void)
-{
-    av_dict_free(&swr_opts);
-    av_dict_free(&sws_dict);
-    av_dict_free(&format_opts);
-    av_dict_free(&codec_opts);
-}
-
-static void do_exit(VideoState* is)
-{
-    if (is)
-    {
-        stream_close(is);
-    }
-    uninit_opts();
-    av_freep(&vfilters_list);
-    avformat_network_deinit();
-    if (show_status)
-        printf("\n");
-    SDL_Quit();
-    av_log(NULL, AV_LOG_QUIET, "%s", "");
-    exit(0);
-}
-
 static void set_default_window_size(int width, int height, AVRational sar)
 {
     SDL_Rect rect;
@@ -263,8 +264,6 @@ static void set_default_window_size(int width, int height, AVRational sar)
     img_width = rect.w;
     img_height = rect.h;
 }
-
-static uint8_t send = 0;
 
 static int video_open(VideoState* is)
 {
@@ -1976,6 +1975,10 @@ static void refresh_loop_wait_event(VideoState* is, SDL_Event* event)
         if (is->show_mode != SHOW_MODE_NONE && (!is->paused || is->force_refresh))
             video_refresh(is, &remaining_time);
         SDL_PumpEvents();
+        if (need_exit)
+        {
+            do_exit(is);
+        }
     }
 }
 

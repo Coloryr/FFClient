@@ -12,6 +12,8 @@ typedef union
 extern uint8_t socket_send;
 extern uint8_t socket_conn;
 
+extern int need_exit;
+
 void init_socket(char* addr);
 void socket_send_image_size(char* name, int width, int height);
 void socket_send_image(void* ptr, int size);

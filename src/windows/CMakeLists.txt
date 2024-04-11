@@ -4,8 +4,8 @@ project(ffclient VERSION 0.1.0 LANGUAGES C)
 add_executable(ffclient ../packet.c ../decoder.c ../frame.c 
 ../clock.c ../video.c ../utils.c ../ffclient.c socket.c main.c)
 
-set(FFMPEG_PATH "C:/Users/user/Desktop/ffmpeg-master-latest-win64-gpl-shared")
-set(SDL_PATH "C:/Users/user/Desktop/SDL2-2.30.2")
+set(FFMPEG_PATH "E:/environment/ffmpeg-n6.1.1-34-g5e45c27ba9-win64-gpl-shared-6.1")
+set(SDL_PATH "E:/environment/SDL2")
 
 include_directories(
     "${FFMPEG_PATH}/include"

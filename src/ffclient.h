@@ -3,7 +3,13 @@
 
 int ffclient();
 
-extern char *input_filename, *mem_name, *hw_name;
-extern int img_max_width, img_max_height, disable_audio, nobuffer;
+extern char* input_filename;
+extern char* mem_name;
+extern char* hw_name;
+
+extern int img_max_width;
+extern int img_max_height;
+extern int disable_audio;
+extern int nobuffer;
 
 #endif

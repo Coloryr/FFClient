@@ -38,7 +38,8 @@ int socket_read(void *arg)
         }
         else if (size == SOCKET_ERROR || size == 0)
         {
-            exit(0);
+            need_exit = 1;
+            break;
         }
     }
 }
