@@ -7,7 +7,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.IO.MemoryMappedFiles;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -77,6 +76,9 @@ public partial class FFClientControl : UserControl
     public void Stop()
     {
         _handel?.Stop();
+        Image1.Source = null;
+        _bitmap?.Dispose();
+        _handel = null!;
     }
 
     private void VideoUpdate(int width, int height, IntPtr ptr)
@@ -369,6 +371,9 @@ public class VideoDisplay
                         temp[3] = 0x31;
 
                         client.Send(temp, 4, SocketFlags.None);
+                        client.Close();
+                        client.Dispose();
+
                         return;
                     }
                 }

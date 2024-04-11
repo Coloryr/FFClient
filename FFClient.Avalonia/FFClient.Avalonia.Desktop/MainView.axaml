@@ -11,7 +11,7 @@
     mc:Ignorable="d">
     <DockPanel>
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
-            <TextBox Name="Text1" Width="200" />
+            <TextBox Name="Text1" Width="400" />
             <Button Name="Button1" Content="Start" />
             <Button Name="Button2" Content="Stop" />
         </StackPanel>
