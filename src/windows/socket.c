@@ -156,7 +156,6 @@ void socket_send_image_size(char *name, int width, int height)
     if (send(socket_fd, temp, 16, 0) == SOCKET_ERROR)
     {
         need_exit = 1;
-        break;
     }
 }
 
