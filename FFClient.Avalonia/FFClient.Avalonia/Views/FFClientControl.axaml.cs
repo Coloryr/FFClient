@@ -210,6 +210,7 @@ public class VideoDisplay
     private bool windows;
     private IntPtr handel;
     private bool output = true;
+    private bool stop = false;
 
     public VideoDisplay(string url, int img_width,
         int img_height, Action<int, int, IntPtr> action, string? clientpath)
@@ -360,6 +361,16 @@ public class VideoDisplay
                 {
                     _action(width, height, ptr);
                     Thread.Sleep(20);
+                    if (stop)
+                    {
+                        temp[0] = 0xcf;
+                        temp[1] = 0x1f;
+                        temp[2] = 0x98;
+                        temp[3] = 0x31;
+
+                        client.Send(temp, 4, SocketFlags.None);
+                        return;
+                    }
                 }
             }
             catch
@@ -394,16 +405,18 @@ public class VideoDisplay
                         shmid = 0;
                     }
                 }
-
-                socket.BeginAccept(Accept, null);
-
-                return;
+                if (!stop)
+                {
+                    socket.BeginAccept(Accept, null);
+                }
             }
         }).Start();
     }
 
     public void Stop()
-    { 
-        
+    {
+        stop = true;
+        socket.Close();
+        socket.Dispose();
     }
 }

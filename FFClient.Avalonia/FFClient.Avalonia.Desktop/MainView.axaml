@@ -9,8 +9,13 @@
     d:DesignHeight="450"
     d:DesignWidth="800"
     mc:Ignorable="d">
-    <Panel>
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
+            <TextBox Name="Text1" Width="200" />
+            <Button Name="Button1" Content="Start" />
+            <Button Name="Button2" Content="Stop" />
+        </StackPanel>
         <view:FFClientControl Name="Video" />
-    </Panel>
+    </DockPanel>
 
 </UserControl>

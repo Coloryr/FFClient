@@ -35,6 +35,11 @@ int socket_read(void *arg)
                 av_log(NULL, AV_LOG_INFO, "start send image\n");
                 socket_send = 1;
             }
+            else if (temp[0] == 0xcf && temp[1] == 0x1f && temp[2] == 0x98 && temp[3] == 0x31)
+            {
+                need_exit = 1;
+                break;
+            }
         }
         else if (size == SOCKET_ERROR || size == 0)
         {
