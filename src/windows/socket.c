@@ -106,12 +106,12 @@ void socket_stop()
     }
 }
 
-void socket_send_image_size(char* name, int width, int height)
+void socket_send_image_size(char *name, int width, int height)
 {
     // 创建共享内存
 
     handel = CreateFileMapping(INVALID_HANDLE_VALUE,
-        NULL, PAGE_READWRITE, 0, width * height * 4, name);
+                               NULL, PAGE_READWRITE, 0, width * height * 4, name);
 
     if (handel == NULL)
     {
@@ -121,7 +121,7 @@ void socket_send_image_size(char* name, int width, int height)
 
     // 将共享内存连接到当前的进程地址空间
     shm = MapViewOfFile(handel, FILE_MAP_ALL_ACCESS, 0, 0, 0);
-    if (shm == (void*)-1)
+    if (shm == (void *)-1)
     {
         fprintf(stderr, "share mem link failed\n");
         exit(EXIT_FAILURE);
@@ -129,7 +129,7 @@ void socket_send_image_size(char* name, int width, int height)
 
     printf("Memory attched at %X\n", (int)shm);
 
-    uint8_t temp[32] = { 0 };
+    uint8_t temp[32] = {0};
     I32U8 cov;
 
     temp[0] = 0xff;
@@ -155,7 +155,8 @@ void socket_send_image_size(char* name, int width, int height)
 
     if (send(socket_fd, temp, 16, 0) == SOCKET_ERROR)
     {
-        exit(0);
+        need_exit = 1;
+        break;
     }
 }
 

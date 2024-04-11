@@ -37,10 +37,16 @@ int socket_read(void *arg)
                 av_log(NULL, AV_LOG_INFO, "start send image\n");
                 socket_send = 1;
             }
+            else if (temp[0] == 0xcf && temp[1] == 0x1f && temp[2] == 0x98 && temp[3] == 0x31)
+            {
+                need_exit = 1;
+                break;
+            }
         }
         else if (size <= 0)
         {
-            exit(0);
+            need_exit = 1;
+            break;
         }
     }
 }
@@ -120,7 +126,11 @@ void socket_send_image_size(char *name, int width, int height)
     temp[12] = cov.u8[2];
     temp[13] = cov.u8[3];
 
-    send(socket_fd, temp, 16, 0);
+    if (send(socket_fd, temp, 16, 0) <= 0)
+    {
+        need_exit = 1;
+        break;
+    }
 }
 
 void socket_stop()
