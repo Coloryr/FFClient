@@ -1,15 +1,30 @@
 cmake_minimum_required(VERSION 3.12.0)
-project(ffclient VERSION 0.1.0 LANGUAGES C)
 
-add_executable(ffclient ../packet.c ../decoder.c ../frame.c 
-../clock.c ../video.c ../utils.c ../ffclient.c socket.c main.c)
+set(APP_NAME ffclient)
 
-set(FFMPEG_PATH "E:/environment/ffmpeg-n6.1.1-34-g5e45c27ba9-win64-gpl-shared-6.1")
+project(${APP_NAME})
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/bin/${APP_NAME})
+
+set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+add_executable(${APP_NAME})
+
+add_subdirectory(${SRC_DIR} ${SRC_DIR}/build)
+
+target_sources(
+    ${APP_NAME}
+    PRIVATE
+    socket.c main.c
+)
+
+set(FFMPEG_PATH "E:/environment/ffmpeg-n6.1-latest-win64-gpl-shared-6.1")
 set(SDL_PATH "E:/environment/SDL2")
 
-include_directories(
-    "${FFMPEG_PATH}/include"
-    "${SDL_PATH}/include"
+target_include_directories(
+    ${APP_NAME} PUBLIC
+    ${FFMPEG_PATH}/include
+    ${SDL_PATH}/include
 )
 
 target_link_libraries(${PROJECT_NAME} 

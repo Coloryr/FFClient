@@ -4,11 +4,11 @@
 #include <libavformat/avformat.h>
 #include <libavutil/rational.h>
 
-#ifdef _WIN64 || _WIN32
+#ifdef _WIN64
 #include <SDL.h>
 #else
 #include <SDL2/SDL.h>
-#endif // _WIN64 || _WIN32
+#endif // _WIN64
 
 int compute_mod(int a, int b);
 int cmp_audio_fmts(enum AVSampleFormat fmt1, int64_t channel_count1,

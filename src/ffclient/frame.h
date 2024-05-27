@@ -6,11 +6,11 @@
 #include <libavutil/frame.h>
 #include <libavutil/macros.h>
 
-#ifdef _WIN64 || _WIN32
+#ifdef _WIN64
 #include <SDL.h>
 #else
 #include <SDL2/SDL.h>
-#endif // _WIN64 || _WIN32
+#endif // _WIN64
 
 #include "packet.h"
 

@@ -11,11 +11,11 @@
 #include <libavfilter/buffersrc.h>
 #include <libswresample/swresample.h>
 
-#ifdef _WIN64 || _WIN32
+#ifdef _WIN64
 #include <SDL.h>
 #else
 #include <SDL2/SDL.h>
-#endif // _WIN64 || _WIN32
+#endif // _WIN64
 
 #include "clock.h"
 #include "frame.h"
@@ -150,6 +150,12 @@ typedef struct VideoState
     int last_video_stream, last_audio_stream;
 
     SDL_cond *continue_read_thread;
+
+    char* mem_name;
+    char* hw_name;
+
+    int disable_audio;
+    int nobuffer;
 } VideoState;
 
 extern SDL_AudioDeviceID audio_dev;

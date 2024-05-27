@@ -1,5 +1,6 @@
-#include "../ffclient.h"
-#include "../socket.h"
+#include "ffclient.h"
+#include "socket.h"
+#include "ffmpeg.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,51 +9,78 @@
 /* Called from the main */
 int main(int argc, char **argv)
 {
+    char** out_args = NULL;
+    int out_argc = 0;
+    char** in_args = NULL;
+    int in_argc = 0;
+
+    bool enable_output = false;
+    bool enable_input = false;
+
+    avdevice_register_all();
+
     if (argc == 1)
     {
-        input_filename = "/home/orangepi/h264_1080p.mp4";
-        img_max_width = 0;
-        img_max_height = 0;
-        init_socket("/tmp/video.sock");
-        mem_name = "1234";
-    }
-    else if (argc < 6)
-    {
-        printf("Arg size is not 5\n");
+        printf("Must set input or output");
+        exit(1);
         return 1;
     }
-    else
+
+    for (int i = 0; i < argc; i++)
     {
-        input_filename = argv[1];
-        mem_name = argv[5];
-
-        img_max_width = atoi(argv[2]);
-        img_max_height = atoi(argv[3]);
-
-        init_socket(argv[4]);
-
-        if (argc > 6)
+        if (strcmp("-input", argv[i]) == 0)
         {
-            for (int i = 6; i < argc; i++)
+            if (i + 1 < argc)
             {
-                if (strcmp("disable_audio", argv[i]) == 0)
-                {
-                    disable_audio = 1;
-                }
-                else if (strcmp("nobuffer", argv[i]) == 0)
-                {
-                    nobuffer = 1;
-                }
-                else
-                {
-                    hw_name = argv[i];
-                }
+                in_args = &argv[i + 1];
+                in_argc = argc - 1;
+                enable_input = true;
+                break;
+            }
+        }
+        else if (strcmp("-output", argv[i]) == 0)
+        {
+            in_argc = -i;
+            if (i + 1 < argc)
+            {
+                out_args = &argv[i + 1];
+                out_argc = argc - i - 1;
+                enable_output = true;
+                break;
             }
         }
     }
 
-    int res = ffclient();
+    if (in_argc > 0 && in_args != NULL)
+    {
+        int res = ffclient(in_argc, in_args);
+        if (res != 0)
+        {
+            return res;
+        }
+    }
+
+    if (out_argc > 0 && out_args != NULL)
+    {
+        int res = ffmpeg(out_argc, out_args);
+        if (res != 0)
+        {
+            return res;
+        }
+    }
+    for (;;)
+    {
+        if (enable_input)
+        {
+            ffclient_loop();
+        }
+        if (enable_output)
+        {
+            ffmpeg_loop();
+        }
+    }
+
     socket_stop();
 
-    return res;
+    return 0;
 }
