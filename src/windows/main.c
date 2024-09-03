@@ -19,7 +19,7 @@ int main(int argc, char** argv)
     char** in_args = NULL;
     int in_argc = 0;
 
-    bool enable_output = false;
+    //bool enable_output = false;
     bool enable_input = false;
 
     avdevice_register_all();
@@ -43,7 +43,7 @@ int main(int argc, char** argv)
                 break;
             }
         }
-        else if (strcmp("-output", argv[i]) == 0)
+        /*else if (strcmp("-output", argv[i]) == 0)
         {
             in_argc = -i;
             if (i + 1 < argc)
@@ -53,7 +53,7 @@ int main(int argc, char** argv)
                 enable_output = true;
                 break;
             }
-        }
+        }*/
     }
 
     if (in_argc > 0 && in_args != NULL)
@@ -65,24 +65,24 @@ int main(int argc, char** argv)
         }
     }
 
-    if (out_argc > 0 && out_args != NULL)
+    /*if (out_argc > 0 && out_args != NULL)
     {
         int res = ffmpeg(out_argc, out_args);
         if (res != 0)
         {
             return res;
         }
-    }
+    }*/
     for (;;)
     {
         if (enable_input)
         {
             ffclient_loop();
         }
-        if (enable_output)
+        /*if (enable_output)
         {
             ffmpeg_loop();
-        }
+        }*/
     }
 
     socket_stop();

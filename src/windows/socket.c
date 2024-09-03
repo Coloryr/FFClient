@@ -23,7 +23,7 @@ HANDLE handel = NULL;
 
 uint8_t temp[256];
 
-int socket_read(void *arg)
+static int socket_read(void *arg)
 {
     for (;;)
     {
@@ -47,6 +47,8 @@ int socket_read(void *arg)
             break;
         }
     }
+
+    return 0;
 }
 
 void init_socket(char *addr)
@@ -55,7 +57,7 @@ void init_socket(char *addr)
     WSADATA data;
     if (WSAStartup(sockVersion, &data) != 0)
     {
-        return 0;
+        return;
     }
 
     int port = atoi(addr);
@@ -70,12 +72,14 @@ void init_socket(char *addr)
 
     socket_addr.sin_family = AF_INET;
     socket_addr.sin_port = htons(port);
-    socket_addr.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+    inet_pton(AF_INET, "127.0.0.1", &socket_addr.sin_addr.S_un.S_addr);
 
     if (connect(socket_fd, (struct sockaddr *)&socket_addr, sizeof(socket_addr)) == SOCKET_ERROR)
     {
+        char buffer[256];
+        strerror_s(buffer, sizeof(buffer), errno);
         socket_conn = 0;
-        av_log(NULL, AV_LOG_INFO, "Connect to socket server on \"%d\" failure:%s\n", port, strerror(errno));
+        av_log(NULL, AV_LOG_INFO, "Connect to socket server on \"%d\" failure:%s\n", port, buffer);
         return;
     }
 
@@ -127,7 +131,7 @@ void socket_send_image_size(char *name, int width, int height)
         exit(EXIT_FAILURE);
     }
 
-    printf("Memory attched at %X\n", (int)shm);
+    printf("Memory attched at %p\n", shm);
 
     uint8_t temp[32] = {0};
     I32U8 cov;
