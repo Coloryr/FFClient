@@ -154,6 +154,8 @@ typedef struct VideoState
     char* mem_name;
     char* hw_name;
 
+    uint8_t disabel_hw;
+
     int disable_audio;
     int nobuffer;
 } VideoState;

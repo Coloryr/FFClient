@@ -1276,7 +1276,7 @@ static int stream_component_open(VideoState* is, int stream_index)
 
     av_dict_set(&opts, "flags", "+copy_opaque", AV_DICT_MULTIKEY);
 
-    if (avctx->codec_type == AVMEDIA_TYPE_VIDEO)
+    if (avctx->codec_type == AVMEDIA_TYPE_VIDEO && is->disabel_hw != 1)
     {
 #ifdef __linux__
         if (rktype != 0)
@@ -2180,6 +2180,10 @@ int ffclient(int argc, char** argv)
         else if (strcmp("-nobuffer", argv[i]) == 0)
         {
             is->nobuffer = 1;
+        }
+        else if (strcmp("-hw_disable", argv[i]) == 0)
+        {
+            is->disabel_hw = 1;
         }
         else if (strcmp("-hw_name", argv[i]) == 0)
         {

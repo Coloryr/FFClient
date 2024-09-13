@@ -38,8 +38,9 @@ int main(int argc, char** argv)
             if (i + 1 < argc)
             {
                 in_args = &argv[i + 1];
-                in_argc = argc - 1;
+                in_argc = argc - 1 - i;
                 enable_input = true;
+                printf("enable input");
                 break;
             }
         }

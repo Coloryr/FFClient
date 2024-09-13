@@ -90,7 +90,7 @@ public partial class FFClientControl : UserControl
             _bitmap?.Dispose();
             _bitmap = new(new PixelSize(width, height), new Vector(96, 96),
                 PixelFormat.Bgra8888, AlphaFormat.Opaque);
-            Dispatcher.UIThread.Invoke(() => Image1.Source = _bitmap);
+            Dispatcher.UIThread.Post(() => Image1.Source = _bitmap);
         }
         if (ptr != 0)
         {
@@ -101,7 +101,7 @@ public partial class FFClientControl : UserControl
                         (uint)(width * height * 4));
             }
 
-            Dispatcher.UIThread.Invoke(Image1.InvalidateVisual);
+            Dispatcher.UIThread.Post(Image1.InvalidateVisual);
         }
     }
 }
@@ -225,8 +225,8 @@ public class VideoDisplay
         string path;
         if (!windows)
         {
-            //path = $"/tmp/{GetNewFromTag()[..8]}.sock";
-            path = "/tmp/video.sock";
+            path = $"/tmp/{GetNewFromTag()[..8]}.sock";
+            //path = "/tmp/video.sock";
             if (File.Exists(path))
             {
                 File.Delete(path);
@@ -237,8 +237,8 @@ public class VideoDisplay
         }
         else
         {
-            //var port = GetFirstAvailablePort();
-            var port = 666;
+            var port = GetFirstAvailablePort();
+            //var port = 666;
             path = port.ToString();
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
             socket.Bind(new IPEndPoint(IPAddress.Any, port));
@@ -267,14 +267,15 @@ public class VideoDisplay
             };
         }
 
-        //mem_name = new Random().Next(65535).ToString();
-        mem_name = "1234";
+        mem_name = new Random().Next(65535).ToString();
+        //mem_name = "1234";
 
         process = new Process
         {
             StartInfo = info,
             EnableRaisingEvents = true,
         };
+        info.ArgumentList.Add("-input");
         info.ArgumentList.Add(url);
         info.ArgumentList.Add(width.ToString());
         info.ArgumentList.Add(height.ToString());
