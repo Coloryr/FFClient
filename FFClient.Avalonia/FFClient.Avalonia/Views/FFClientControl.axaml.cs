@@ -56,6 +56,7 @@ public partial class FFClientControl : UserControl
 
     private VideoDisplay _handel;
     private WriteableBitmap _bitmap;
+    private TopLevel? level;
 
     public FFClientControl()
     {
@@ -71,6 +72,8 @@ public partial class FFClientControl : UserControl
         }
 
         _handel = new(source, VideoWidth, VideoHeight, VideoUpdate, ClientPath);
+
+        level = TopLevel.GetTopLevel(this);
     }
 
     public void Stop()
@@ -81,28 +84,60 @@ public partial class FFClientControl : UserControl
         _handel = null!;
     }
 
+    private bool Run;
+    private int VWidth;
+    private int VHeight;
+    private IntPtr Ptr;
+
     private void VideoUpdate(int width, int height, IntPtr ptr)
     {
-        if (ptr == 0 || _bitmap == null || _bitmap.Size.Width != width
-            || _bitmap.Size.Height != height)
+        Ptr = ptr;
+        VWidth = width;
+        VHeight = height;
+
+        Run = true;
+
+        Dispatcher.UIThread.Post(() =>
         {
-            Dispatcher.UIThread.Invoke(() => Image1.Source = null);
-            _bitmap?.Dispose();
-            _bitmap = new(new PixelSize(width, height), new Vector(96, 96),
-                PixelFormat.Bgra8888, AlphaFormat.Opaque);
-            Dispatcher.UIThread.Post(() => Image1.Source = _bitmap);
+            level?.RequestAnimationFrame((t) =>
+            {
+                Render();
+            });
+        });
+    }
+
+    private void Render()
+    {
+        if (!Run)
+        {
+            return;
         }
-        if (ptr != 0)
+
+        if (Ptr == 0 || _bitmap == null || _bitmap.Size.Width != VWidth
+            || _bitmap.Size.Height != VHeight)
+        {
+            Image1.Source = null;
+            _bitmap?.Dispose();
+            _bitmap = new(new PixelSize(VWidth, VHeight), new Vector(96, 96),
+                PixelFormat.Bgra8888, AlphaFormat.Opaque);
+            Image1.Source = _bitmap;
+        }
+        if (Ptr != 0)
         {
             using var locked = _bitmap.Lock();
             unsafe
             {
-                Unsafe.CopyBlock(locked.Address.ToPointer(), ptr.ToPointer(),
-                        (uint)(width * height * 4));
+                Unsafe.CopyBlock(locked.Address.ToPointer(), Ptr.ToPointer(),
+                        (uint)(VWidth * VHeight * 4));
             }
 
-            Dispatcher.UIThread.Post(Image1.InvalidateVisual);
+            Image1.InvalidateVisual();
         }
+
+        level?.RequestAnimationFrame((t) =>
+        {
+            Render();
+        });
     }
 }
 
@@ -202,15 +237,18 @@ public class VideoDisplay
         while (true);
     }
 
-    private Process process;
-    private int width;
-    private int height;
-    private Socket socket;
+    private int _width;
+    private int _height;
+    private IntPtr _handel;
+
+    private Process _process;
+    
+    private Socket _socket;
     private int shmid = -1;
     private string mem_name;
     private Action<int, int, IntPtr> _action;
     private bool windows;
-    private IntPtr handel;
+  
     private bool output = true;
     private bool stop = false;
 
@@ -218,8 +256,8 @@ public class VideoDisplay
         int img_height, Action<int, int, IntPtr> action, string? clientpath)
     {
         windows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-        width = img_width;
-        height = img_height;
+        _width = img_width;
+        _height = img_height;
         _action = action;
 
         string path;
@@ -231,8 +269,8 @@ public class VideoDisplay
             {
                 File.Delete(path);
             }
-            socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.IP);
-            socket.Bind(new UnixDomainSocketEndPoint(path));
+            _socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.IP);
+            _socket.Bind(new UnixDomainSocketEndPoint(path));
             Console.WriteLine($"Socket start in {path}");
         }
         else
@@ -240,12 +278,12 @@ public class VideoDisplay
             var port = GetFirstAvailablePort();
             //var port = 666;
             path = port.ToString();
-            socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
-            socket.Bind(new IPEndPoint(IPAddress.Any, port));
+            _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.IP);
+            _socket.Bind(new IPEndPoint(IPAddress.Any, port));
             Console.WriteLine($"Socket start in :{port}");
         }
-        socket.Listen();
-        socket.BeginAccept(Accept, null);
+        _socket.Listen();
+        _socket.BeginAccept(Accept, null);
         ProcessStartInfo info;
         string pex = windows ? ".exe" : "";
         if (string.IsNullOrWhiteSpace(clientpath))
@@ -270,23 +308,23 @@ public class VideoDisplay
         mem_name = new Random().Next(65535).ToString();
         //mem_name = "1234";
 
-        process = new Process
+        _process = new Process
         {
             StartInfo = info,
             EnableRaisingEvents = true,
         };
         info.ArgumentList.Add("-input");
         info.ArgumentList.Add(url);
-        info.ArgumentList.Add(width.ToString());
-        info.ArgumentList.Add(height.ToString());
+        info.ArgumentList.Add(_width.ToString());
+        info.ArgumentList.Add(_height.ToString());
         info.ArgumentList.Add(path);
         info.ArgumentList.Add(mem_name);
-        process.Exited += Process1_Exited;
-        process.OutputDataReceived += Process_OutputDataReceived;
-        process.ErrorDataReceived += Process_ErrorDataReceived;
-        process.Start();
-        process.BeginErrorReadLine();
-        process.BeginOutputReadLine();
+        _process.Exited += Process1_Exited;
+        _process.OutputDataReceived += Process_OutputDataReceived;
+        _process.ErrorDataReceived += Process_ErrorDataReceived;
+        _process.Start();
+        _process.BeginErrorReadLine();
+        _process.BeginOutputReadLine();
     }
 
     private void Process_ErrorDataReceived(object sender, DataReceivedEventArgs e)
@@ -317,10 +355,10 @@ public class VideoDisplay
 
     private void Accept(IAsyncResult result)
     {
-        var client = socket.EndAccept(result);
+        var client = _socket.EndAccept(result);
         if (client == null)
         {
-            socket.BeginAccept(Accept, null);
+            _socket.BeginAccept(Accept, null);
             return;
         }
 
@@ -335,18 +373,18 @@ public class VideoDisplay
                 {
                     output = false;
 
-                    width = ToInt(temp, 2);
-                    height = ToInt(temp, 6);
+                    _width = ToInt(temp, 2);
+                    _height = ToInt(temp, 6);
                     shmid = ToInt(temp, 10);
 
-                    Console.WriteLine($"Get decoder {width}x{height} shmid:{shmid}");
+                    Console.WriteLine($"Get decoder {_width}x{_height} shmid:{shmid}");
 
-                    _action(width, height, 0);
+                    _action(_width, _height, 0);
 
                     if (windows)
                     {
-                        handel = Win32Hook.OpenFileMapping(Win32Hook.FILE_MAP_ALL_ACCESS, false, mem_name);
-                        ptr = Win32Hook.MapViewOfFile(handel, Win32Hook.FILE_MAP_ALL_ACCESS, 0, 0, 0);
+                        _handel = Win32Hook.OpenFileMapping(Win32Hook.FILE_MAP_ALL_ACCESS, false, mem_name);
+                        ptr = Win32Hook.MapViewOfFile(_handel, Win32Hook.FILE_MAP_ALL_ACCESS, 0, 0, 0);
                     }
                     else
                     {
@@ -362,7 +400,7 @@ public class VideoDisplay
 
                 while (true)
                 {
-                    _action(width, height, ptr);
+                    _action(_width, _height, ptr);
                     Thread.Sleep(20);
                     if (stop)
                     {
@@ -389,11 +427,11 @@ public class VideoDisplay
 
                         ptr = IntPtr.Zero;
                     }
-                    if (handel != 0)
+                    if (_handel != 0)
                     {
-                        Win32Hook.CloseHandle(handel);
+                        Win32Hook.CloseHandle(_handel);
 
-                        handel = 0;
+                        _handel = 0;
                     }
                 }
                 else
@@ -413,7 +451,7 @@ public class VideoDisplay
                 }
                 if (!stop)
                 {
-                    socket.BeginAccept(Accept, null);
+                    _socket.BeginAccept(Accept, null);
                 }
             }
         }).Start();
@@ -422,7 +460,7 @@ public class VideoDisplay
     public void Stop()
     {
         stop = true;
-        socket.Close();
-        socket.Dispose();
+        _socket.Close();
+        _socket.Dispose();
     }
 }
