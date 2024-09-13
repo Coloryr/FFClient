@@ -24,6 +24,9 @@ public partial class FFClientControl : UserControl
     public static readonly StyledProperty<int> VideoHeightProperty =
             AvaloniaProperty.Register<FFClientControl, int>(nameof(VideoHeight), 0);
 
+    public static readonly StyledProperty<int> VolumeProperty =
+           AvaloniaProperty.Register<FFClientControl, int>(nameof(Volume), 100);
+
     public static readonly StyledProperty<string?> VideoSourceProperty =
             AvaloniaProperty.Register<FFClientControl, string?>(nameof(VideoSource));
 
@@ -42,6 +45,12 @@ public partial class FFClientControl : UserControl
         set { SetValue(VideoHeightProperty, value); }
     }
 
+    public int Volume
+    {
+        get { return GetValue(VolumeProperty); }
+        set { SetValue(VolumeProperty, value); }
+    }
+
     public string? VideoSource
     {
         get { return GetValue(VideoSourceProperty); }
@@ -54,13 +63,30 @@ public partial class FFClientControl : UserControl
         set { SetValue(ClientPathProperty, value); }
     }
 
-    private VideoDisplay _handel;
-    private WriteableBitmap _bitmap;
+    private VideoDisplay? _handel;
+    private WriteableBitmap? _bitmap;
     private TopLevel? level;
+
+    public bool IsStarted { get; private set; }
 
     public FFClientControl()
     {
         InitializeComponent();
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property == VolumeProperty)
+        {
+            if (Volume > 100 || Volume < 0)
+            {
+                Volume = 100;
+                return;
+            }
+            _handel?.SetVolume(Volume);
+        }
     }
 
     public void Play()
@@ -71,34 +97,42 @@ public partial class FFClientControl : UserControl
             throw new ArgumentNullException(nameof(VideoSource), "Source is null");
         }
 
-        _handel = new(source, VideoWidth, VideoHeight, VideoUpdate, ClientPath);
+        if (_handel != null)
+        {
+            throw new Exception("video is started");
+        }
+
+        _handel = new(source, VideoWidth, VideoHeight, VideoLoad, ClientPath, Volume);
 
         level = TopLevel.GetTopLevel(this);
+
+        IsStarted = true;
     }
 
     public void Stop()
     {
-        _handel?.Stop();
+        if (_handel == null)
+        {
+            throw new Exception("video is not started");
+        }
+
+        IsStarted = false;
+
+        _handel.Stop();
         Image1.Source = null;
         _bitmap?.Dispose();
-        _handel = null!;
+        _handel = null;
     }
 
-    private bool Run;
-    private int VWidth;
-    private int VHeight;
-    private IntPtr Ptr;
-
-    private void VideoUpdate(int width, int height, IntPtr ptr)
+    private void VideoLoad()
     {
-        Ptr = ptr;
-        VWidth = width;
-        VHeight = height;
-
-        Run = true;
-
+        _bitmap?.Dispose();
+        _bitmap = new(new PixelSize(_handel!.Width, _handel.Height), new Vector(96, 96),
+            PixelFormat.Bgra8888, AlphaFormat.Opaque);
+        
         Dispatcher.UIThread.Post(() =>
         {
+            Image1.Source = _bitmap;
             level?.RequestAnimationFrame((t) =>
             {
                 Render();
@@ -108,31 +142,15 @@ public partial class FFClientControl : UserControl
 
     private void Render()
     {
-        if (!Run)
+        
+        unsafe
         {
-            return;
+            using var locked = _bitmap!.Lock();
+            Unsafe.CopyBlock(locked.Address.ToPointer(), _handel!.Ptr.ToPointer(),
+                    (uint)(_handel.Width * _handel.Height * 4));
         }
 
-        if (Ptr == 0 || _bitmap == null || _bitmap.Size.Width != VWidth
-            || _bitmap.Size.Height != VHeight)
-        {
-            Image1.Source = null;
-            _bitmap?.Dispose();
-            _bitmap = new(new PixelSize(VWidth, VHeight), new Vector(96, 96),
-                PixelFormat.Bgra8888, AlphaFormat.Opaque);
-            Image1.Source = _bitmap;
-        }
-        if (Ptr != 0)
-        {
-            using var locked = _bitmap.Lock();
-            unsafe
-            {
-                Unsafe.CopyBlock(locked.Address.ToPointer(), Ptr.ToPointer(),
-                        (uint)(VWidth * VHeight * 4));
-            }
-
-            Image1.InvalidateVisual();
-        }
+        Image1.InvalidateVisual();
 
         level?.RequestAnimationFrame((t) =>
         {
@@ -141,49 +159,43 @@ public partial class FFClientControl : UserControl
     }
 }
 
-public class LinuxHook
+public partial class LinuxHook
 {
-    [DllImport("libc", EntryPoint = "shmget")]
-    public static extern int Shmget(int key, ulong size, int shmflg);
+    [LibraryImport("libc", EntryPoint = "shmget")]
+    public static partial int Shmget(int key, ulong size, int shmflg);
 
-    [DllImport("libc", EntryPoint = "shmat")]
-    public static extern IntPtr Shmat(int shm_id, IntPtr shm_addr, int shmflg);
+    [LibraryImport("libc", EntryPoint = "shmat")]
+    public static partial IntPtr Shmat(int shm_id, IntPtr shm_addr, int shmflg);
 
-    [DllImport("libc", EntryPoint = "shmdt")]
-    public static extern int Shmdt(IntPtr shm_addr);
+    [LibraryImport("libc", EntryPoint = "shmdt")]
+    public static partial int Shmdt(IntPtr shm_addr);
 
-    [DllImport("libc", EntryPoint = "shmctl")]
-    public static extern int Shmctl(int shmid, int cmd, IntPtr buf);
+    [LibraryImport("libc", EntryPoint = "shmctl")]
+    public static partial int Shmctl(int shmid, int cmd, IntPtr buf);
 }
 
-public class Win32Hook
+public partial class Win32Hook
 {
-    [DllImport("kernel32.dll", SetLastError = true)]
-    public static extern IntPtr OpenFileMapping(uint dwDesiredAccess, bool bInheritHandle, string lpName);
-
-    // 定义CreateFileMapping函数
-    [DllImport("kernel32.dll", SetLastError = true)]
-    public static extern IntPtr CreateFileMapping(IntPtr hFile, IntPtr lpFileMappingAttributes, 
-        uint flProtect, uint dwMaximumSizeHigh, uint dwMaximumSizeLow, string lpName);
-
-    // 定义MapViewOfFile函数
-    [DllImport("kernel32.dll", SetLastError = true)]
-    public static extern IntPtr MapViewOfFile(IntPtr hFileMappingObject, uint dwDesiredAccess,
-        uint dwFileOffsetHigh, uint dwFileOffsetLow, UIntPtr dwNumberOfBytesToMap);
-
-    // 定义MapViewOfFile函数
-    [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool UnmapViewOfFile(IntPtr lpBaseAddress);
-
-    // 定义CloseHandle函数
-    [DllImport("kernel32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool CloseHandle(IntPtr hObject);
-
     public const uint PAGE_READWRITE = 0x04;
     public const uint FILE_MAP_ALL_ACCESS = 0xF001F;
     public const int INVALID_HANDLE_VALUE = -1;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr OpenFileMapping(uint dwDesiredAccess, bool bInheritHandle, string lpName);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr CreateFileMapping(IntPtr hFile, IntPtr lpFileMappingAttributes,
+        uint flProtect, uint dwMaximumSizeHigh, uint dwMaximumSizeLow, string lpName);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr MapViewOfFile(IntPtr hFileMappingObject, uint dwDesiredAccess,
+       uint dwFileOffsetHigh, uint dwFileOffsetLow, UIntPtr dwNumberOfBytesToMap);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool UnmapViewOfFile(IntPtr lpBaseAddress);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool CloseHandle(IntPtr hObject);
 }
 
 public class VideoDisplay
@@ -237,31 +249,40 @@ public class VideoDisplay
         while (true);
     }
 
-    private int _width;
-    private int _height;
+    private static int ToInt(byte[] temp, int start)
+    {
+        return temp[start + 3] << 24 | temp[start + 2] << 16 | temp[start + 1] << 8 | temp[start];
+    }
+
+    public int Width { get; private set; }
+    public int Height { get; private set; }
+    public IntPtr Ptr { get; private set; }
+
+    private int _shmid = -1;
+
+    private readonly Process _process;
+    private readonly string _mem;
+    private readonly Action _action;
+    private readonly bool _windows;
+    private readonly Socket _socket;
+
+    private Socket? _client;
+
     private IntPtr _handel;
 
-    private Process _process;
-    
-    private Socket _socket;
-    private int shmid = -1;
-    private string mem_name;
-    private Action<int, int, IntPtr> _action;
-    private bool windows;
-  
-    private bool output = true;
-    private bool stop = false;
+    private bool _output = true;
+    private bool _stop = false;
 
-    public VideoDisplay(string url, int img_width,
-        int img_height, Action<int, int, IntPtr> action, string? clientpath)
+    public VideoDisplay(string url, int img_width, int img_height, 
+        Action action, string? clientpath, int volume)
     {
-        windows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-        _width = img_width;
-        _height = img_height;
+        _windows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        Width = img_width;
+        Height = img_height;
         _action = action;
 
         string path;
-        if (!windows)
+        if (!_windows)
         {
             path = $"/tmp/{GetNewFromTag()[..8]}.sock";
             //path = "/tmp/video.sock";
@@ -285,7 +306,7 @@ public class VideoDisplay
         _socket.Listen();
         _socket.BeginAccept(Accept, null);
         ProcessStartInfo info;
-        string pex = windows ? ".exe" : "";
+        string pex = _windows ? ".exe" : "";
         if (string.IsNullOrWhiteSpace(clientpath))
         {
             info = new ProcessStartInfo(Client + pex)
@@ -305,7 +326,7 @@ public class VideoDisplay
             };
         }
 
-        mem_name = new Random().Next(65535).ToString();
+        _mem = new Random().Next(65535).ToString();
         //mem_name = "1234";
 
         _process = new Process
@@ -315,10 +336,12 @@ public class VideoDisplay
         };
         info.ArgumentList.Add("-input");
         info.ArgumentList.Add(url);
-        info.ArgumentList.Add(_width.ToString());
-        info.ArgumentList.Add(_height.ToString());
+        info.ArgumentList.Add(Width.ToString());
+        info.ArgumentList.Add(Height.ToString());
         info.ArgumentList.Add(path);
-        info.ArgumentList.Add(mem_name);
+        info.ArgumentList.Add(_mem);
+        info.ArgumentList.Add("-volume");
+        info.ArgumentList.Add(volume.ToString());
         _process.Exited += Process1_Exited;
         _process.OutputDataReceived += Process_OutputDataReceived;
         _process.ErrorDataReceived += Process_ErrorDataReceived;
@@ -329,7 +352,7 @@ public class VideoDisplay
 
     private void Process_ErrorDataReceived(object sender, DataReceivedEventArgs e)
     {
-        if (output)
+        if (_output)
         {
             Console.WriteLine(e.Data);
         }
@@ -337,7 +360,7 @@ public class VideoDisplay
 
     private void Process_OutputDataReceived(object sender, DataReceivedEventArgs e)
     {
-        if (output)
+        if (_output)
         {
             Console.WriteLine(e.Data);
         }
@@ -348,108 +371,65 @@ public class VideoDisplay
         
     }
 
-    private int ToInt(byte[] temp, int start)
-    {
-        return temp[start + 3] << 24 | temp[start + 2] << 16 | temp[start + 1] << 8 | temp[start];
-    }
-
     private void Accept(IAsyncResult result)
     {
-        var client = _socket.EndAccept(result);
-        if (client == null)
+        try
         {
+            _client = _socket.EndAccept(result);
+            if (_stop)
+            {
+                return;
+            }
             _socket.BeginAccept(Accept, null);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            if (!_stop)
+            {
+                _socket.BeginAccept(Accept, null);
+            }
             return;
         }
-
         new Thread(() =>
         {
             byte[] temp = new byte[32];
-            IntPtr ptr = 0;
             try
             {
-                client.Receive(temp, 16, SocketFlags.None);
+                _client.Receive(temp, 16, SocketFlags.None);
                 if (temp[0] == 0xff && temp[1] == 0x54)
                 {
-                    output = false;
+                    _output = false;
 
-                    _width = ToInt(temp, 2);
-                    _height = ToInt(temp, 6);
-                    shmid = ToInt(temp, 10);
+                    Width = ToInt(temp, 2);
+                    Height = ToInt(temp, 6);
+                    _shmid = ToInt(temp, 10);
 
-                    Console.WriteLine($"Get decoder {_width}x{_height} shmid:{shmid}");
+                    Console.WriteLine($"Get decoder {Width}x{Height} shmid:{_shmid}");
 
-                    _action(_width, _height, 0);
-
-                    if (windows)
+                    if (_windows)
                     {
-                        _handel = Win32Hook.OpenFileMapping(Win32Hook.FILE_MAP_ALL_ACCESS, false, mem_name);
-                        ptr = Win32Hook.MapViewOfFile(_handel, Win32Hook.FILE_MAP_ALL_ACCESS, 0, 0, 0);
+                        _handel = Win32Hook.OpenFileMapping(Win32Hook.FILE_MAP_ALL_ACCESS, false, _mem);
+                        Ptr = Win32Hook.MapViewOfFile(_handel, Win32Hook.FILE_MAP_ALL_ACCESS, 0, 0, 0);
                     }
                     else
                     {
-                        ptr = LinuxHook.Shmat(shmid, 0, 0);
+                        Ptr = LinuxHook.Shmat(_shmid, 0, 0);
                     }
 
                     temp[0] = 0xcf;
                     temp[1] = 0x1f;
                     temp[2] = 0xe4;
                     temp[3] = 0x98;
-                    client.Send(temp, 4, SocketFlags.None);
-                }
+                    _client.Send(temp, 4, SocketFlags.None);
 
-                while (true)
-                {
-                    _action(_width, _height, ptr);
-                    Thread.Sleep(20);
-                    if (stop)
-                    {
-                        temp[0] = 0xcf;
-                        temp[1] = 0x1f;
-                        temp[2] = 0x98;
-                        temp[3] = 0x31;
-
-                        client.Send(temp, 4, SocketFlags.None);
-                        client.Close();
-                        client.Dispose();
-
-                        return;
-                    }
+                    _action();
                 }
             }
             catch
             {
-                if (windows)
-                {
-                    if (ptr != IntPtr.Zero)
-                    {
-                        Win32Hook.UnmapViewOfFile(ptr);
-
-                        ptr = IntPtr.Zero;
-                    }
-                    if (_handel != 0)
-                    {
-                        Win32Hook.CloseHandle(_handel);
-
-                        _handel = 0;
-                    }
-                }
-                else
-                {
-                    if (ptr != IntPtr.Zero)
-                    {
-                        LinuxHook.Shmdt(ptr);
-
-                        ptr = IntPtr.Zero;
-                    }
-                    if (shmid != -1)
-                    {
-                        LinuxHook.Shmctl(shmid, 0, 0);
-
-                        shmid = 0;
-                    }
-                }
-                if (!stop)
+                Close();
+                if (!_stop)
                 {
                     _socket.BeginAccept(Accept, null);
                 }
@@ -457,10 +437,81 @@ public class VideoDisplay
         }).Start();
     }
 
+    private void Close()
+    {
+        if (_windows)
+        {
+            if (Ptr != IntPtr.Zero)
+            {
+                Win32Hook.UnmapViewOfFile(Ptr);
+
+                Ptr = IntPtr.Zero;
+            }
+            if (_handel != 0)
+            {
+                Win32Hook.CloseHandle(_handel);
+
+                _handel = 0;
+            }
+        }
+        else
+        {
+            if (Ptr != IntPtr.Zero)
+            {
+                LinuxHook.Shmdt(Ptr);
+
+                Ptr = IntPtr.Zero;
+            }
+            if (_shmid != -1)
+            {
+                LinuxHook.Shmctl(_shmid, 0, 0);
+
+                _shmid = 0;
+            }
+        }
+    }
+
     public void Stop()
     {
-        stop = true;
-        _socket.Close();
-        _socket.Dispose();
+        _stop = true;
+
+        Close();
+
+        var temp = new byte[4];
+        temp[0] = 0xcf;
+        temp[1] = 0x1f;
+        temp[2] = 0x98;
+        temp[3] = 0x31;
+
+        try
+        {
+            if (_client != null && _client.Connected)
+            {
+                _client.Send(temp, 4, SocketFlags.None);
+                _client.Close();
+                _client.Dispose();
+            }
+
+            _socket.Close();
+            _socket.Dispose();
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+    }
+
+    public void SetVolume(int volume)
+    {
+        if (_client != null && _client.Connected)
+        {
+            var temp = new byte[4];
+            temp[0] = 0x35;
+            temp[1] = 0x67;
+            temp[2] = 0xA7;
+            temp[3] = (byte)volume;
+
+            _client.Send(temp, 4, SocketFlags.None);
+        }
     }
 }

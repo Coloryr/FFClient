@@ -989,7 +989,9 @@ static void sdl_audio_callback(void* opaque, Uint8* stream, int len)
         {
             memset(stream, 0, len1);
             if (!is->muted && is->audio_buf)
+            {
                 SDL_MixAudioFormat(stream, (uint8_t*)is->audio_buf + is->audio_buf_index, AUDIO_S16SYS, len1, is->audio_volume);
+            }
         }
         len -= len1;
         stream += len1;
@@ -1823,7 +1825,6 @@ fail:
 
 static VideoState* stream_open(const char* filename, VideoState* is)
 {
-
     is->last_video_stream = is->video_stream = -1;
     is->last_audio_stream = is->audio_stream = -1;
     is->filename = av_strdup(filename);
@@ -2192,6 +2193,13 @@ int ffclient(int argc, char** argv)
                 is->hw_name = argv[i + 1];
             }
         }
+        else if (strcmp("-volume", argv[i]) == 0)
+        {
+            if (i + 1 < argc)
+            {
+                is->audio_volume = atoi(argv[i + 1]);
+            }
+        }
     }
 
     av_log(NULL, AV_LOG_INFO, "input file: %s, max width: %d, max height: %d\n",
@@ -2241,4 +2249,9 @@ int ffclient(int argc, char** argv)
 void ffclient_loop()
 {
     event_loop(ff_is);
+}
+
+void set_volume(int volume)
+{
+    ff_is->audio_volume = av_clip(SDL_MIX_MAXVOLUME * volume / 100, 0, SDL_MIX_MAXVOLUME);
 }

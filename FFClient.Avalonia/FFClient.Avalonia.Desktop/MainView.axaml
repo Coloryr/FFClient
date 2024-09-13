@@ -11,9 +11,20 @@
     mc:Ignorable="d">
     <DockPanel>
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
-            <TextBox Name="Text1" Width="400" />
+            <TextBox
+                Name="Text1"
+                Width="400"
+                AcceptsReturn="True" />
             <Button Name="Button1" Content="Start" />
             <Button Name="Button2" Content="Stop" />
+            <Slider
+                Name="Volume"
+                Width="200"
+                LargeChange="10"
+                Maximum="100"
+                Minimum="0"
+                SmallChange="1"
+                Value="100" />
         </StackPanel>
         <view:FFClientControl Name="Video" />
     </DockPanel>

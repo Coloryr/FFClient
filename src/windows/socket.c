@@ -11,6 +11,8 @@
 
 #include <SDL.h>
 
+#include "ffclient.h"
+
 #pragma comment(lib, "ws2_32.lib")
 
 SOCKET socket_fd = INVALID_SOCKET;
@@ -39,6 +41,11 @@ static int socket_read(void *arg)
             {
                 need_exit = 1;
                 break;
+            }
+            else if (temp[0] == 0x35 && temp[1] == 0x67 && temp[2] == 0xA7)
+            {
+                av_log(NULL, AV_LOG_INFO, "set volume %d\n", temp[3]);
+                set_volume(temp[3]);
             }
         }
         else if (size == SOCKET_ERROR || size == 0)
